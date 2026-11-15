@@ -23,6 +23,7 @@ SRCS  := bench/run_build.cu src/reference.cpp
 DEPS  := $(wildcard include/lbvh/*.h bench/*.h bench/*.cuh)
 
 SMOKE_ARGS := --points uniform:12 --points duplicates:12 --points clusters:16 \
+              $(if $(wildcard data/meshes/bunny.ply),--mesh data/meshes/bunny.ply) \
               --repeats 3 --warmup-ms 50 --validate
 
 .PHONY: all build both local smoke clean FORCE

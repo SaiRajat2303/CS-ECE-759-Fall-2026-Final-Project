@@ -29,6 +29,15 @@ for L in "${LAYOUTS[@]}"; do
     fi
 done
 
+MESHES=()
+for m in bunny armadillo dragon happy asian_dragon; do
+    if [[ -f "data/meshes/${m}.ply" ]]; then
+        MESHES+=(--mesh "data/meshes/${m}.ply")
+    else
+        echo "warning: data/meshes/${m}.ply missing, skipped (see scripts/fetch_meshes.sh)" >&2
+    fi
+done
+
 export LBVH_COTENANTS=$(squeue -w "${NODE}" -h -t RUNNING -O "JobID" 2>/dev/null | wc -l | tr -d ' ')
 export LBVH_THROTTLE=$(nvidia-smi --query-gpu=clocks_event_reasons.active,clocks.sm \
                        --format=csv,noheader 2>/dev/null | head -1 | tr ',' ';' | tr -d ' ')
@@ -51,6 +60,7 @@ for L in "${LAYOUTS[@]}"; do
         --points uniform:16-23 \
         --points clusters:16-23 \
         --points duplicates:16-23 \
+        "${MESHES[@]}" \
         --block 256 \
         --repeats 15 \
         --warmup-ms 500 \
