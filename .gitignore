@@ -1,0 +1,16 @@
+# Build directories 
+bin/
+build/ 
+cmake-build-/
+out/
+
+
+# Compiled
+*.o
+*.obj
+*.so
+*.exe
+*.dll
+
+# Cuda
+*********.cubin
