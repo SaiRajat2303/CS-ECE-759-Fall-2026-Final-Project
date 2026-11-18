@@ -1,5 +1,8 @@
+#pragma once
+#ifndef GEOMETRY_H
+#define GEOMETRY_H
+
 #include <cmath>
-#include <cstdint>
 #include <limits>
 #include <algorithm>
 
@@ -10,7 +13,7 @@ struct Vec3 {
 
   Vec3 operator+(const Vec3& o) const { return {x + o.x, y + o.y, z + o.z};}
   Vec3 operator-(const Vec3& o) const { return {x - o.x, y - o.y, z - o.z};}
-  Vec3 operator*(float s) const { return {x * x, y  * s, z * s};}
+  Vec3 operator*(float s) const { return {x * s, y * s, z * s};}
   Vec3 operator*(const Vec3& o) const { return {x * o.x, y * o.y, z * o.z};}
   Vec3 operator/(float s) const { return {x / s, y /s, z / s};}
   Vec3 operator-() const {return {-x, -y, -z}; }
@@ -57,7 +60,7 @@ struct Ray {
   }
 };
 
-// Axis aligned bounding box
+//==== Axis aligned bounding box ====//
 struct AABB {
     Vec3 min{ std::numeric_limits<float>::max(),  std::numeric_limits<float>::max(),  std::numeric_limits<float>::max()};
     Vec3 max{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
@@ -93,3 +96,4 @@ struct AABB {
     }
 };
 
+#endif 
