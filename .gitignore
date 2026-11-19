@@ -1,9 +1,15 @@
 # Build directories 
 bin/
 build/ 
-cmake-build-/
+cmake-build-*/
 out/
 
+
+# Cmake generated files
+CMakeCache.txt
+CMakefiles/
+cmake_install.cmake
+install_manifest.txt
 
 # Compiled
 *.o
