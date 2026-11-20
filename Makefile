@@ -1,6 +1,7 @@
 NVCC   ?= nvcc
 ARCH   ?= sm_89
 LAYOUT ?= aos
+XFLAGS ?=
 
 ifeq ($(LAYOUT),aos)
   LAYOUT_DEF := -DLBVH_LAYOUT_SOA=0
@@ -11,11 +12,13 @@ else
 endif
 
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
-GIT_DIRTY  := $(shell git diff --quiet HEAD 2>/dev/null || echo -dirty)
-VERSION    := $(GIT_COMMIT)$(GIT_DIRTY)
+GIT_DIRTY  := $(shell git diff --quiet HEAD 2>/dev/null || echo -dirty-$$(git diff HEAD | sha1sum | cut -c1-7))
+XFLAGS_TAG := $(if $(strip $(XFLAGS)),+$(shell printf '%s' '$(strip $(XFLAGS))' | tr -c 'A-Za-z0-9_.=+-' '_'))
+# Builds of different uncommitted code or extra flags get distinct stamps, so their CSV rows never share a resume key.
+VERSION    := $(GIT_COMMIT)$(GIT_DIRTY)$(XFLAGS_TAG)
 
 NVCCFLAGS := -arch=$(ARCH) -O3 -std=c++17 -lineinfo -Iinclude -Ibench $(LAYOUT_DEF) \
-             -DGIT_COMMIT=\"$(VERSION)\" -Xcompiler -Wall,-Wextra
+             -DGIT_COMMIT=\"$(VERSION)\" -Xcompiler -Wall,-Wextra $(XFLAGS)
 
 BIN   := bin/$(ARCH)/lbvh_build_$(LAYOUT)
 STAMP := bin/$(ARCH)/.version_$(LAYOUT)
