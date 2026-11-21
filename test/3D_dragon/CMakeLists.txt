@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)
 project(bvh_dynamic_bench LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -8,34 +8,24 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---------------------------------------------------------------------------
-# Dependencies (downloaded at configure time)
+# Dependencies: header-only libraries downloaded by ./prefetch_deps.sh into
+# _deps/ (versions are pinned there). Nothing is downloaded by CMake.
 #   tinyobjloader - OBJ loading
-#   happly        - PLY loading/saving (Stanford 3D Scanning Repository format)
-# Both are used header-only. SOURCE_SUBDIR points at a directory that does not
-# exist so FetchContent only downloads them and does not add their own CMake
-# projects (tinyobjloader's would build a second copy of the implementation).
-# ---------------------------------------------------------------------------
-include(FetchContent)
-
-FetchContent_Declare(tinyobjloader
-  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
-  GIT_TAG        v2.0.0rc13
-  GIT_SHALLOW    TRUE
-  SOURCE_SUBDIR  _header_only)
-
-FetchContent_Declare(happly
-  GIT_REPOSITORY https://github.com/nmwsharp/happly.git
-  GIT_TAG        v1.1.0
-  GIT_SHALLOW    TRUE
-  SOURCE_SUBDIR  _header_only)
-
-FetchContent_MakeAvailable(tinyobjloader happly)
+#   happly        - PLY loading/saving (Stanford 3D Scanning Repository format)---------------------------------------------------------------------------
+set(DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/_deps" CACHE PATH "Folder filled by prefetch_deps.sh")
+foreach(header tinyobjloader/tiny_obj_loader.h happly/happly.h)
+  if(NOT EXISTS "${DEPS_DIR}/${header}")
+    message(FATAL_ERROR "Missing ${DEPS_DIR}/${header}\n"
+                        "Run ./prefetch_deps.sh first (it only downloads source code).")
+  endif()
+endforeach()
 
 add_library(mesh_deps INTERFACE)
 target_include_directories(mesh_deps INTERFACE
-  ${tinyobjloader_SOURCE_DIR}
-  ${happly_SOURCE_DIR}
+  ${DEPS_DIR}/tinyobjloader
+  ${DEPS_DIR}/happly
   ${CMAKE_CURRENT_SOURCE_DIR})
+
 
 # ---------------------------------------------------------------------------
 # CPU tools (always built)
