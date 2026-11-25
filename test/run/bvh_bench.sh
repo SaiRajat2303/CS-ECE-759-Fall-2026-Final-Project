@@ -31,7 +31,7 @@ module load cmake         # needs >= 3.24
 
 # ----------------------------- Settings -------------------------------------
 SRC_DIR="${SLURM_SUBMIT_DIR:-$PWD}"               # folder with CMakeLists.txt
-MESH="${MESH:-$SRC_DIR/dragon_recon/dragon_vrip.ply}"
+MESH="${MESH:-../../assets/graphics/dragon_vrip.ply}"
 MODE="${MODE:-explode}"                           # rigid | twist | wave | explode
 NUM_FRAMES="${NUM_FRAMES:-10}"                    # frames in the profiled run
 CAM_RES="${CAM_RES:-1024}"
