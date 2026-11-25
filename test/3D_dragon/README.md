@@ -2,17 +2,21 @@
 
 tar xzf dragon_recon.tar.gz # assets/graphics/dragon_vrip.ply (~871K tris); # dragon_vrip_res2/3/4.ply are smaller versions for quick tests
 
-# 2. Build (downloads tinyobjloader + happly automatically)
+# 2. Fetch dependencies (manual, once, needs internet; CMake does not do this)
+
+./prefetch.sh # clones tinyobjloader v2.0.0rc13 and happly v1.1.0 into _deps/ (run on the login node)
+
+# 3. Build
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
-# 3. Make animated frames from the static scan
+# 4. Make animated frames from the static scan
 
 ./build/make_frames dragon_recon/dragon_vrip.ply explode 60 frames/explode
 ./build/make_frames dragon_recon/dragon_vrip.ply wave 60 frames/wave
 
-# 4. Benchmark your BVH
+# 5. Benchmark your BVH
 
 ./build/bvh*cuda_bench "frames/explode/frame*%04d.ply" 60 explode.csv
 

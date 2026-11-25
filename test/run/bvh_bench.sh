@@ -52,7 +52,7 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 command -v nsys > /dev/null || { echo "ERROR: nsys not found (is the cuda module loaded?)"; exit 1; }
 [[ -f "$MESH" ]] || { echo "ERROR: mesh not found: $MESH"; exit 1; }
 [[ -d "$SRC_DIR/_deps/tinyobjloader" && -d "$SRC_DIR/_deps/happly" ]] \
-    || { echo "ERROR: $SRC_DIR/_deps is missing; run ./prefetch_deps.sh on the login node first"; exit 1; }
+    || { echo "ERROR: $SRC_DIR/_deps is missing; run test/3D_dragon/prefetch.sh manually on the login node first"; exit 1; }
 
 # Record what produced the report. Your local viewer must be the SAME OR NEWER
 # Nsight Systems version than the one printed here.

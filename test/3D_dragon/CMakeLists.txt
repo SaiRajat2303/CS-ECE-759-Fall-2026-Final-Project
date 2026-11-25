@@ -8,15 +8,17 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # ---------------------------------------------------------------------------
-# Dependencies: header-only libraries downloaded by ./prefetch_deps.sh into
-# _deps/ (versions are pinned there). Nothing is downloaded by CMake.
+# Dependencies: header-only libraries that you download yourself, before
+# configuring, by running ./prefetch.sh (it fills _deps/; versions are pinned
+# there). CMake never downloads anything.
 #   tinyobjloader - OBJ loading
 #   happly        - PLY loading/saving (Stanford 3D Scanning Repository format)---------------------------------------------------------------------------
-set(DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/_deps" CACHE PATH "Folder filled by prefetch_deps.sh")
+set(DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/_deps" CACHE PATH "Folder filled by ./prefetch.sh")
 foreach(header tinyobjloader/tiny_obj_loader.h happly/happly.h)
   if(NOT EXISTS "${DEPS_DIR}/${header}")
     message(FATAL_ERROR "Missing ${DEPS_DIR}/${header}\n"
-                        "Run ./prefetch_deps.sh first (it only downloads source code).")
+                        "CMake does not fetch dependencies: run ./prefetch.sh in ${CMAKE_CURRENT_SOURCE_DIR} "
+                        "manually first (on a node with internet; it only downloads source code).")
   endif()
 endforeach()
 

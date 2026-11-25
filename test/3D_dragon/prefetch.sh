@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# prefetch_deps.sh — run ONCE on a LOGIN node (which has internet).
-# The Slurm job (run_bvh_bench.sh) then compiles everything on the GPU node,
+# prefetch.sh — run ONCE, by hand, on a LOGIN node (which has internet).
+# CMake does not run this. The Slurm job (test/run/bvh_bench.sh) then compiles everything on the GPU node,
 # using these local copies, so the compute node needs no internet access.
 set -euo pipefail
 cd "$(dirname "$0")"
