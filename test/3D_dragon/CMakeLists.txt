@@ -35,8 +35,6 @@ target_include_directories(mesh_deps INTERFACE
 add_executable(make_frames make_frames.cpp)
 target_link_libraries(make_frames PRIVATE mesh_deps)
 
-add_executable(bvh_bench bvh_dynamic_bench.cpp)   # CPU reference harness
-target_include_directories(bvh_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ---------------------------------------------------------------------------
 # CUDA harness (built only if a CUDA compiler is found)
@@ -52,10 +50,18 @@ if(CMAKE_CUDA_COMPILER)
   set(CMAKE_CUDA_STANDARD 17)
   set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-  add_executable(bvh_cuda_bench bvh_cuda_bench.cu)
+  # The LBVH lives in the repository's include/ and src/ folders. Its Morton
+  # and hierarchy kernels come from src/kernels.cu; the triangle-specific
+  # kernels are in include/lbvh/tri_impl.h, wrapped by lbvh_user_bvh.cuh.
+  set(LBVH_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." CACHE PATH "LBVH repository root")
+  set(LBVH_DEFS LBVH_BLOCK_SIZE=256 LBVH_LAYOUT_SOA=0 LBVH_STREAM_HINT_CG=0)
+
+  add_executable(bvh_cuda_bench bvh_cuda_bench.cu ${LBVH_ROOT}/src/kernels.cu)
+  target_include_directories(bvh_cuda_bench PRIVATE ${LBVH_ROOT}/include)
+  target_compile_definitions(bvh_cuda_bench PRIVATE ${LBVH_DEFS})
   target_link_libraries(bvh_cuda_bench PRIVATE mesh_deps CUDA::cudart)
   target_compile_options(bvh_cuda_bench PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr -lineinfo>)
 else()
-  message(WARNING "No CUDA compiler found: building CPU tools only (make_frames, bvh_bench)")
+  message(WARNING "No CUDA compiler found: building make_frames only")
 endif()

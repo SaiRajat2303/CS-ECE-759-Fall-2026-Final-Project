@@ -13,9 +13,12 @@
 //                  --rnd-rays N  incoherent random rays     (default 1048576)
 //                  --repeats R   trace launches averaged    (default 5)
 //                  --first F     index of first frame file  (default 0)
+//                  --label NAME  run name (e.g. the animation mode): shown in
+//                                the NVTX ranges and as the CSV's first column
 //
-// Fill in the UserBVH adapter below with your kernels. Everything else
-// (loading, ray generation, timing, correctness check, CSV) is done for you.
+// The UserBVH adapter (lbvh_user_bvh.cuh) plugs in the LBVH from include/lbvh/.
+// Everything else (loading, ray generation, timing, correctness check, CSV)
+// is done here.
 
 #define MESH_IO_IMPLEMENTATION
 #include "mesh_io.h"
@@ -28,6 +31,21 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+
+// NVTX ranges label each frame / strategy / phase in the Nsight Systems
+// timeline (nsys profile --trace=cuda,nvtx). Header-only; compiled out if the
+// toolkit has no NVTX headers.
+#if __has_include(<nvtx3/nvToolsExt.h>)
+#include <nvtx3/nvToolsExt.h>
+struct NvtxRange {
+    explicit NvtxRange(const char* name) { nvtxRangePushA(name); }
+    ~NvtxRange() { nvtxRangePop(); }
+    NvtxRange(const NvtxRange&) = delete;
+    NvtxRange& operator=(const NvtxRange&) = delete;
+};
+#else
+struct NvtxRange { explicit NvtxRange(const char*) {} };
+#endif
 
 #define CUDA_CHECK(x)                                                              \
     do {                                                                           \
@@ -56,53 +74,11 @@ __global__ void fillMissKernel(Hit* hits, int n) {
 }
 
 // =============================================================================
-// ADAPTER — replace the bodies with calls to your BVH kernels.
-//
-// All pointers are DEVICE pointers. Vertex positions change every frame;
-// the triangle index buffer is the same for every frame.
-// Launch everything on the given stream so the harness's timers are correct.
+// ADAPTER — the LBVH from include/lbvh/ (Karras 2012), one leaf per triangle.
+// build(): full rebuild; update(): refit with the frame-0 topology.
+// See lbvh_user_bvh.cuh and include/lbvh/tri_impl.h.
 // =============================================================================
-struct UserBVH {
-    // e.g. Node* dNodes = nullptr; int* dPrimIdx = nullptr; ...
-
-    // Called once before any timing. Allocate all buffers here so that
-    // cudaMalloc never shows up in build/update times.
-    void init(int numVerts, int numTris) {
-        (void)numVerts; (void)numTris;
-    }
-
-    // Full build from scratch.
-    void build(const float3* dVerts, const int3* dTris, int numVerts, int numTris, cudaStream_t s) {
-        (void)dVerts; (void)dTris; (void)numVerts; (void)numTris; (void)s;
-        // TODO: myBuildKernels<<<..., s>>>(...);
-    }
-
-    // Your dynamic update: refit, restructuring, partial rebuild, ...
-    void update(const float3* dVerts, const int3* dTris, int numVerts, int numTris, cudaStream_t s) {
-        (void)dVerts; (void)dTris; (void)numVerts; (void)numTris; (void)s;
-        // TODO: myRefitKernel<<<..., s>>>(...);
-    }
-
-    // Closest-hit traversal: write hits[i] for rays[i]. Respect tmin/tmax.
-    void trace(const Ray* dRays, Hit* dHits, int numRays,
-               const float3* dVerts, const int3* dTris, cudaStream_t s) {
-        (void)dRays; (void)dVerts; (void)dTris;
-        // TODO: replace with myTraceKernel<<<..., s>>>(...);
-        fillMissKernel<<<(numRays + 255) / 256, 256, 0, s>>>(dHits, numRays);
-    }
-
-    // Optional, NOT timed: SAH cost of the current tree. Return -1 if unavailable.
-    double sahCost(cudaStream_t s) { (void)s; return -1.0; }
-
-    // Optional, NOT timed: average nodes visited per ray, for a separate
-    // instrumented traversal. Return -1 if unavailable.
-    double visitsPerRay(const Ray* dRays, int numRays, const float3* dVerts, const int3* dTris, cudaStream_t s) {
-        (void)dRays; (void)numRays; (void)dVerts; (void)dTris; (void)s;
-        return -1.0;
-    }
-
-    void destroy() { /* cudaFree(...) */ }
-};
+#include "lbvh_user_bvh.cuh"
 
 // ----------------------------------------------------------- ray kernels -----
 __device__ inline uint32_t pcgHash(uint32_t v) {
@@ -189,18 +165,20 @@ struct GpuTimer {
 int main(int argc, char** argv) {
     if (argc < 4) {
         std::fprintf(stderr, "usage: %s \"frames/frame_%%04d.obj\" numFrames out.csv "
-                             "[--cam-res N] [--rnd-rays N] [--repeats R] [--first F]\n", argv[0]);
+                             "[--cam-res N] [--rnd-rays N] [--repeats R] [--first F] [--label NAME]\n", argv[0]);
         return 1;
     }
     std::string pattern = argv[1], csvPath = argv[3];
     int numFrames = std::atoi(argv[2]);
     int camRes = 1024, rndCount = 1 << 20, repeats = 5, first = 0;
+    std::string label;
     for (int i = 4; i + 1 < argc; ++i) {
         std::string a = argv[i];
         if (a == "--cam-res") camRes = std::atoi(argv[++i]);
         else if (a == "--rnd-rays") rndCount = std::atoi(argv[++i]);
         else if (a == "--repeats") repeats = std::atoi(argv[++i]);
         else if (a == "--first") first = std::atoi(argv[++i]);
+        else if (a == "--label") label = argv[++i];
     }
 
     // ---- load all frames on the host (not timed) ----
@@ -261,7 +239,7 @@ int main(int argc, char** argv) {
     bvhUpdate.init(nV, nT);
 
     FILE* csv = std::fopen(csvPath.c_str(), "w");
-    std::fprintf(csv, "frame,strategy,update_ms,sah,cam_ms,cam_mrays_s,cam_visits,"
+    std::fprintf(csv, "label,frame,strategy,update_ms,sah,cam_ms,cam_mrays_s,cam_visits,"
                       "rnd_ms,rnd_mrays_s,rnd_visits,frame_ms,rnd_hits,mismatch_vs_rebuild\n");
 
     GpuTimer timer;
@@ -273,7 +251,16 @@ int main(int argc, char** argv) {
         return timer.stopMs(s) / repeats;
     };
 
+    // Outer NVTX range: names the whole run (e.g. the animation mode) on the
+    // timeline, so a report identifies itself whatever its file is called.
+    std::string runName = (label.empty() ? std::string("run") : label) + " | " + std::to_string(nV) +
+                          " verts, " + std::to_string(nT) + " tris, " + std::to_string(numFrames) + " frames";
+    {
+    NvtxRange runRange(runName.c_str());
     for (int f = 0; f < numFrames; ++f) {
+        char frameName[160];
+        std::snprintf(frameName, sizeof frameName, "%s%sframe %d", label.c_str(), label.empty() ? "" : " ", f);
+        NvtxRange frameRange(frameName);
         // Upload this frame's positions (not timed: simulates the animation
         // system having already produced them on the GPU).
         CUDA_CHECK(cudaMemcpyAsync(dVerts, frames[f].data(), sizeof(float3) * nV, cudaMemcpyHostToDevice, s));
@@ -287,13 +274,15 @@ int main(int argc, char** argv) {
         for (int k = 0; k < 2; ++k) {
             UserBVH& bvh = *bvhs[k];
             timer.start(s);
-            if (k == 0 || f == 0) bvh.build(dVerts, dTris, nV, nT, s);
-            else                  bvh.update(dVerts, dTris, nV, nT, s);
+            NvtxRange strategyRange(k == 0 ? "rebuild" : "update");
+            if (k == 0 || f == 0) { NvtxRange r("build");  bvh.build(dVerts, dTris, nV, nT, s); }
+            else                  { NvtxRange r("refit");  bvh.update(dVerts, dTris, nV, nT, s); }
             rows[k].upd = timer.stopMs(s);
             CUDA_CHECK(cudaGetLastError());
 
-            rows[k].cam = traceTimed(bvh, dCam, rndHits[k], nCam);   // hits overwritten below
-            rows[k].rnd = traceTimed(bvh, dRnd, rndHits[k], rndCount);
+            { NvtxRange r("trace camera rays"); rows[k].cam = traceTimed(bvh, dCam, rndHits[k], nCam); }  // hits overwritten below
+            { NvtxRange r("trace random rays"); rows[k].rnd = traceTimed(bvh, dRnd, rndHits[k], rndCount); }
+            NvtxRange diagRange("diagnostics (untimed)");
             rows[k].sah = bvh.sahCost(s);
             rows[k].camVis = bvh.visitsPerRay(dCam, nCam, dVerts, dTris, s);
             rows[k].rndVis = bvh.visitsPerRay(dRnd, rndCount, dVerts, dTris, s);
@@ -309,8 +298,8 @@ int main(int argc, char** argv) {
         const char* names[2] = {"rebuild", "update"};
         for (int k = 0; k < 2; ++k) {
             const Row& r = rows[k];
-            std::fprintf(csv, "%d,%s,%.4f,%.4f,%.4f,%.2f,%.2f,%.4f,%.2f,%.2f,%.4f,%u,%u\n",
-                         f, names[k], r.upd, r.sah,
+            std::fprintf(csv, "%s,%d,%s,%.4f,%.4f,%.4f,%.2f,%.2f,%.4f,%.2f,%.2f,%.4f,%u,%u\n",
+                         label.c_str(), f, names[k], r.upd, r.sah,
                          r.cam, nCam / (r.cam * 1e3), r.camVis,
                          r.rnd, rndCount / (r.rnd * 1e3), r.rndVis,
                          r.upd + r.cam + r.rnd,
@@ -320,6 +309,7 @@ int main(int argc, char** argv) {
                      f, rows[0].upd, rndCount / (rows[0].rnd * 1e3),
                      rows[1].upd, rndCount / (rows[1].rnd * 1e3), counters[0]);
     }
+    }  // runRange
     std::fclose(csv);
 
     bvhRebuild.destroy(); bvhUpdate.destroy();

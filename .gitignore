@@ -20,3 +20,10 @@ install_manifest.txt
 
 # Cuda
 *********.cubin
+
+# Dragon benchmark: fetched dependencies, Slurm build, results, frames, logs
+test/3D_dragon/_deps/
+test/3D_dragon/build-gpu/
+test/3D_dragon/results/
+test/3D_dragon/frames/
+logs/
